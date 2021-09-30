@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.UI;
 using UnityEngine;
 using System;
 
@@ -8,6 +9,7 @@ public class DetectShape: MonoBehaviour
     private List<Vector3> drawingPositions = new List<Vector3>();
     public Vector3 mousePos;
     public Vector3 lastmousePos;
+    public Text shapeDisplay;
     private Vector3 zeroVector = new Vector3(1, 1, 0);
     private List<float> aux = new List<float>();
 
@@ -23,38 +25,50 @@ public class DetectShape: MonoBehaviour
     public float angle;
     public float angleVariaton = 0;
     private float pendent;
-    private float last_angle = 0;
+    //private float last_angle = 0;
     private float raise, run;
     public List<float> angles_drawing = new List<float>();
     public List<float> angles_Variaton = new List<float>();
-    
+
 
     [Header("Formes")]
-    public List<List<float>> listOfShapes = new List<List<float>>();
+    private bool newAngle = true;
+    private float acum = 0;
+    private float asum = 0;
+    private float bacum = 0;
+    private float basum = 0;
+    private float arekt = 0;
+    public float minAcum = 20;
+    //public List<List<float>> listOfShapes = new List<List<float>>();
     //public int AliA;
     //public string AliB;
 
-
+    [Header("Shape detecting")]
     private bool stopedDrawing;
-    public bool correctShape = false;
+    private float correctShape = 0;
     public float angleTolerance = 10;
+
+    //2 sided shapes:
+    private float[] spike1 = { 60 };
+    private float[] spike2 = { 120 };
+
+    //3 sided shapes:
+    private float[] triangle1 = { 120, 120 };
+    private float[] capsa2 = { 90, 90 };
+
+    //4 sided shapes:
+    private float[] quadrat1 = { 90, 90, 90 };
+    private float[] rellotge1 = { 120, 120, 120 };
+
+    //5 sided shapes:
+    private float[] pentagon1 = { 70, 70, 70, 70 };
+
     //public Shape quadrat;
     //public Shape triangle;
 
     void Start()
     {
-
-        float[] a1 = { 120, 120};
-        float[] a2 = { 90, 90, 90 };
-        float[] a3 = { 140, 140, 140, 140 };
-        float[] a4 = { 30, 30, 30, 30, 30 };
-
-        foreach (float shape in a2)
-            aux.Add(shape);
-        //listOfShapes.Add(aux);
-        //aux.Clear();
-
-        delay = startDelay;
+        
     }
 
     // Update is called once per frame
@@ -65,9 +79,9 @@ public class DetectShape: MonoBehaviour
             stopedDrawing = true;
             if (Input.GetMouseButtonDown(0))
             {
+                correctShape = 0f;
                 angles_drawing.Clear();
                 angles_Variaton.Clear();
-                correctShape = false;
                 mousePos = Input.mousePosition;
                 lastmousePos = mousePos;
             }
@@ -93,35 +107,35 @@ public class DetectShape: MonoBehaviour
                     else if (raise < 0)
                         angle = 360 + angle;
 
-                    //First angle
-                    if (angles_drawing.Count == 0)
+                    //Angle variation
+                    angleVariaton = angle - arekt;
+                    if (angleVariaton > 180)
+                        angleVariaton -= 360;
+                    if (angleVariaton < -180)
+                        angleVariaton += 360;
+                    //Angle detection
+                    if (newAngle || Math.Abs(angleVariaton) < tolerance)
                     {
-                        delay--;
-                        if (delay == 0)
-                        {
-                            angles_drawing.Add(angle);
-                            last_angle = angle;
-                        }
+                        acum++;
+                        asum += angle;
+                        arekt = asum / acum;
+                        newAngle = false;
                     }
-
-                    //The rest
+                    else if (acum > minAcum)
+                    {
+                        if (Math.Abs(angleVariaton) > tolerance)
+                            angles_drawing.Add(asum / acum);
+                        basum = asum;
+                        bacum = acum;
+                        asum = angle;
+                        acum = 1;
+                        newAngle = true;
+                    }
                     else
                     {
-                        angleVariaton = angle - last_angle;
-                        if (angleVariaton > 180)
-                            angleVariaton -= 360;
-                        if (angleVariaton < -180)
-                            angleVariaton += 360;
-                        
-                        //angleVariaton = angle - last_angle;
-                        //angleVariaton = (angleVariaton + 180) % 360 - 180;
-
-                        if (Math.Abs(angleVariaton) > tolerance)
-                        {
-                            angles_drawing.Add(angle);
-                            angles_Variaton.Add(Math.Abs(angleVariaton));
-                            last_angle = angle;
-                        }
+                        acum = 1;
+                        asum = angle;
+                        newAngle = true;
                     }
                     lastmousePos = mousePos;
                 }
@@ -129,115 +143,230 @@ public class DetectShape: MonoBehaviour
         }
         else if (stopedDrawing)
         {
-            CalculateShapeVariation(aux);
+            stopedDrawing = false;
+            angles_drawing.Add(asum / acum);
+            detectVariationOnVertex(angles_drawing);
+            CalculateShapeVariation(angles_Variaton);
+
+            string Stext;
+            Stext = correctShape.ToString("0.0");
+            shapeDisplay.text = Stext;
+
             angles_Variaton.Clear();
+            angles_drawing.Clear();
             delay = startDelay;
+            newAngle = true;
+            arekt = 0;
+            asum = 0;
+            acum = 0;
+        }
+    }
+
+    void detectVariationOnVertex(List<float> angles)
+    {
+        for (int i = 0; i < angles.Count - 1; i++)
+        {
+            float angleVar = angles[i + 1] - angles[i];
+            if (angleVar > 180)
+                angleVar -= 360;
+            if (angleVar < -180)
+                angleVar += 360;
+
+            angles_Variaton.Add(Math.Abs(angleVar));
         }
     }
 
     //Shape detecting 
     void CalculateShapeVariation(List<float> angles_Variaton_Shape)
     {
-        for (int i = 0; i < angles_Variaton.Count; i++)
+        int size = angles_Variaton_Shape.Count;
+        switch (size)
         {
-            float var = angles_Variaton[i] - angles_Variaton_Shape[i];
-            if (var > 180)
-                var -= 360;
-            if (var < -180)
-                var += 360;
+            case 1:
+                for (int i1 = 0; i1 < size; i1++)
+                {
+                    float var = angles_Variaton_Shape[i1] - spike1[i1];
+                    if (var > 180)
+                        var -= 360;
+                    if (var < -180)
+                        var += 360;
 
-            if (Math.Abs(var) < angleTolerance)
-            {
-                correctShape = true;
-            }
-            else
-            {
-                correctShape = false;
+                    if (Math.Abs(var) < angleTolerance)
+                        correctShape = 2.1f;
+                    else
+                    {
+                        correctShape = 0;
+                        break;
+                    }
+                }
+                if (correctShape == 2.1f)
+                    break;
+                for (int i1 = 0; i1 < size; i1++)
+                {
+                    float var = angles_Variaton_Shape[i1] - spike2[i1];
+                    if (var > 180)
+                        var -= 360;
+                    if (var < -180)
+                        var += 360;
+
+                    if (Math.Abs(var) < angleTolerance)
+                        correctShape = 2.2f;
+                    else
+                    {
+                        correctShape = 0;
+                        break;
+                    }
+                }
                 break;
-            }
+
+            case 2:
+                for (int i1 = 0; i1 < size; i1++)
+                {
+                    float var = angles_Variaton_Shape[i1] - triangle1[i1];
+                    if (var > 180)
+                        var -= 360;
+                    if (var < -180)
+                        var += 360;
+
+                    if (Math.Abs(var) < angleTolerance)
+                        correctShape = 3.1f;
+                    else
+                    {
+                        correctShape = 0;
+                        break;
+                    }
+                }
+                if (correctShape == 3.1f)
+                    break;
+                for (int i1 = 0; i1 < size; i1++)
+                {
+                    float var = angles_Variaton_Shape[i1] - capsa2[i1];
+                    if (var > 180)
+                        var -= 360;
+                    if (var < -180)
+                        var += 360;
+
+                    if (Math.Abs(var) < angleTolerance)
+                        correctShape = 3.2f;
+                    else
+                    {
+                        correctShape = 0;
+                        break;
+                    }
+                }
+                break;
+
+            case 3:
+                for (int i1 = 0; i1 < size; i1++)
+                {
+                    float var = angles_Variaton_Shape[i1] - quadrat1[i1];
+                    if (var > 180)
+                        var -= 360;
+                    if (var < -180)
+                        var += 360;
+
+                    if (Math.Abs(var) < angleTolerance)
+                        correctShape = 4.1f;
+                    else
+                    {
+                        correctShape = 0;
+                        break;
+                    }
+                }
+                if (correctShape == 4.1f)
+                    break;
+                for (int i1 = 0; i1 < size; i1++)
+                {
+                    float var = angles_Variaton_Shape[i1] - rellotge1[i1];
+                    if (var > 180)
+                        var -= 360;
+                    if (var < -180)
+                        var += 360;
+
+                    if (Math.Abs(var) < angleTolerance)
+                        correctShape = 4.2f;
+                    else
+                    {
+                        correctShape = 0;
+                        break;
+                    }
+                }
+                break;
+
+            case 4:
+                for (int i1 = 0; i1 < size; i1++)
+                {
+                    float var = angles_Variaton_Shape[i1] - pentagon1[i1];
+                    if (var > 180)
+                        var -= 360;
+                    if (var < -180)
+                        var += 360;
+
+                    if (Math.Abs(var) < angleTolerance)
+                        correctShape = 4.1f;
+                    else
+                    {
+                        correctShape = 0;
+                        break;
+                    }
+                }
+                break;
         }
     }
+
 }
 
-/*
-        string arr_ref = angles_Variaton.ToString();
-        string arr_aline = angles_Variaton_Shape.ToString();
 
-        int refSeqCnt = arr_ref.Length + 1;
-        int alineSeqCnt = arr_ref.Length + 1;
+/*/First angle
+if (angles_drawing.Count == 0)
+{
+delay--;
+if (delay == 0)
+{
+    angles_drawing.Add(angle);
+    last_angle = angle;
+}
+}
 
-        int[,] scoringMatrix = new int[alineSeqCnt, refSeqCnt];
+//The rest
+else
+{
+angleVariaton = angle - last_angle;
+if (angleVariaton > 180)
+    angleVariaton -= 360;
+if (angleVariaton < -180)
+    angleVariaton += 360;
 
-        //Initialization Step - filled with 0 for the first row and the first column of matrix
-        for (int i = 0; i < alineSeqCnt; i++)
-        {
-            scoringMatrix[i, 0] = 0;
-        }
+//angleVariaton = angle - last_angle;
+//angleVariaton = (angleVariaton + 180) % 360 - 180;
 
-        for (int j = 0; j < refSeqCnt; j++)
-        {
-            scoringMatrix[0, j] = 0;
-        }
+if (Math.Abs(angleVariaton) > tolerance)
+{
+    angles_drawing.Add(angle);
+    angles_Variaton.Add(Math.Abs(angleVariaton));
+    last_angle = angle;
+}
+}
 
-        //Matrix Fill Step
-        for (int i = 1; i < alineSeqCnt; i++)
-        {
-            for (int j = 1; j < refSeqCnt; j++)
-            {
-                int scroeDiag = 0;
-                if (arr_ref.Substring(j - 1, 1) == arr_aline.Substring(i - 1, 1))
-                    scroeDiag = scoringMatrix[i - 1, j - 1] + 2;
-                else
-                    scroeDiag = scoringMatrix[i - 1, j - 1] + -1;
+void CalculateShapeVariation(List<float> angles_Variaton_Shape)
+{
+for (int i = 0; i < angles_Variaton.Count; i++)
+{
+    float var = angles_Variaton[i] - angles_Variaton_Shape[i];
+    if (var > 180)
+        var -= 360;
+    if (var < -180)
+        var += 360;
 
-                int scroeLeft = scoringMatrix[i, j - 1] - 2;
-                int scroeUp = scoringMatrix[i - 1, j] - 2;
-
-                int maxScore = Math.Max(Math.Max(scroeDiag, scroeLeft), scroeUp);
-
-                scoringMatrix[i, j] = maxScore;
-                AliA = maxScore;
-            }
-        }
-        /*
-        //Traceback Step
-        char[] alineSeqArray = arr_ref.ToCharArray();
-        char[] refSeqArray = arr_aline.ToCharArray();
-
-        string AlignmentA = string.Empty;
-        string AlignmentB = string.Empty;
-        int m = alineSeqCnt - 1;
-        int n = refSeqCnt - 1;
-        while (m > 0 && n > 0)
-        {
-            int scroeDiag = 0;
-
-            //Remembering that the scoring scheme is +2 for a match, -1 for a mismatch and -2 for a gap
-            if (alineSeqArray[m - 1] == refSeqArray[n - 1])
-                scroeDiag = 2;
-            else
-                scroeDiag = -1;
-
-            if (m > 0 && n > 0 && scoringMatrix[m, n] == scoringMatrix[m - 1, n - 1] + scroeDiag)
-            {
-                AlignmentA = refSeqArray[n - 1] + AlignmentA;
-                AlignmentB = alineSeqArray[m - 1] + AlignmentB;
-                m = m - 1;
-                n = n - 1;
-            }
-            else if (n > 0 && scoringMatrix[m, n] == scoringMatrix[m, n - 1] - 2)
-            {
-                AlignmentA = refSeqArray[n - 1] + AlignmentA;
-                AlignmentB = "-" + AlignmentB;
-                n = n - 1;
-            }
-            else //if (m > 0 && scoringMatrix[m, n] == scoringMatrix[m - 1, n] + -2)
-            {
-                AlignmentA = "-" + AlignmentA;
-                AlignmentB = alineSeqArray[m - 1] + AlignmentB;
-                m = m - 1;
-            }
-        }
-        AliA = AlignmentA.ToString();
-        AliB = AlignmentB.ToString();
-        */
+    if (Math.Abs(var) < angleTolerance)
+    {
+        correctShape = true;
+    }
+    else
+    {
+        correctShape = false;
+        break;
+    }
+}
+}
+*/
